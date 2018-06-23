@@ -1,0 +1,72 @@
+From 9f7871a98c6f2ee2ed6ce30290d117cdf5ee3e68 Mon Sep 17 00:00:00 2001
+From: Ashijeet Acharya <a.acharya@virtualopensystems.com>
+Date: Sat, 23 Jun 2018 22:22:47 +0530
+Subject: [PATCH 2/2] bcc/bpf: use bpf_strcmp to filter useless events
+
+Signed-off-by: Ashijeet Acharya <a.acharya@virtualopensystems.com>
+---
+ tools/opensnoop.py | 20 +++++++++++++++++---
+ 1 file changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/tools/opensnoop.py b/tools/opensnoop.py
+index e1a0108..088a352 100755
+--- a/tools/opensnoop.py
++++ b/tools/opensnoop.py
+@@ -100,6 +100,7 @@ int trace_return(struct pt_regs *ctx)
+     u64 id = bpf_get_current_pid_tgid();
+     struct val_t *valp;
+     struct data_t data = {};
++    char str[] = "string";
+ 
+     u64 tsp = bpf_ktime_get_ns();
+ 
+@@ -108,13 +109,23 @@ int trace_return(struct pt_regs *ctx)
+         // missed entry
+         return 0;
+     }
++
+     bpf_probe_read(&data.comm, sizeof(data.comm), valp->comm);
+     bpf_probe_read(&data.fname, sizeof(data.fname), (void *)valp->fname);
+     data.id = valp->id;
+     data.ts = tsp / 1000;
+     data.ret = PT_REGS_RC(ctx);
+ 
++    if (str == NULL)
++        goto skip;
++
++    if (bpf_strcmp(data.comm, str) != 0)
++        goto drop_event;
++
++skip:
+     events.perf_submit(ctx, &data, sizeof(data));
++
++drop_event:
+     infotmp.delete(&id);
+ 
+     return 0;
+@@ -128,6 +139,12 @@ elif args.pid:
+         'if (pid != %s) { return 0; }' % args.pid)
+ else:
+     bpf_text = bpf_text.replace('FILTER', '')
++if args.name:
++    bpf_text = bpf_text.replace('string',
++        '%s' % args.name)
++else:
++    bpf_text = bpf_text.replace('char str[] = "string"',
++        'char *str = NULL')
+ if debug or args.ebpf:
+     print(bpf_text)
+     if args.ebpf:
+@@ -177,9 +194,6 @@ def print_event(cpu, data, size):
+     if args.failed and (event.ret >= 0):
+         return
+ 
+-    if args.name and bytes(args.name) not in event.comm:
+-        return
+-
+     if args.timestamp:
+         delta = event.ts - initial_ts
+         print("%-14.9f" % (float(delta) / 1000000), end="")
+-- 
+2.7.4
+

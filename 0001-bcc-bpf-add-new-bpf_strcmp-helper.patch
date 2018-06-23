@@ -1,0 +1,65 @@
+From 93b9c7af71f6d3c1134d0cb31e37894f69ba3ce8 Mon Sep 17 00:00:00 2001
+From: Ashijeet Acharya <a.acharya@virtualopensystems.com>
+Date: Sat, 23 Jun 2018 13:50:55 +0530
+Subject: [PATCH 1/2] bcc/bpf: add new bpf_strcmp helper
+
+Signed-off-by: Ashijeet Acharya <a.acharya@virtualopensystems.com>
+---
+ src/cc/compat/linux/bpf.h         | 1 +
+ src/cc/compat/linux/virtual_bpf.h | 1 +
+ src/cc/export/helpers.h           | 2 ++
+ src/cc/libbpf.c                   | 1 +
+ 4 files changed, 5 insertions(+)
+
+diff --git a/src/cc/compat/linux/bpf.h b/src/cc/compat/linux/bpf.h
+index 9e0211e..f69e1ec 100644
+--- a/src/cc/compat/linux/bpf.h
++++ b/src/cc/compat/linux/bpf.h
+@@ -2107,6 +2107,7 @@ union bpf_attr {
+ 	FN(set_hash),			\
+ 	FN(setsockopt),			\
+ 	FN(skb_adjust_room),		\
++	FN(strcmp),			\
+ 	FN(redirect_map),		\
+ 	FN(sk_redirect_map),		\
+ 	FN(sock_map_update),		\
+diff --git a/src/cc/compat/linux/virtual_bpf.h b/src/cc/compat/linux/virtual_bpf.h
+index 6efc601..c2aa765 100644
+--- a/src/cc/compat/linux/virtual_bpf.h
++++ b/src/cc/compat/linux/virtual_bpf.h
+@@ -2108,6 +2108,7 @@ union bpf_attr {
+ 	FN(set_hash),			\
+ 	FN(setsockopt),			\
+ 	FN(skb_adjust_room),		\
++	FN(strcmp),			\
+ 	FN(redirect_map),		\
+ 	FN(sk_redirect_map),		\
+ 	FN(sock_map_update),		\
+diff --git a/src/cc/export/helpers.h b/src/cc/export/helpers.h
+index a05a9f7..36301f4 100644
+--- a/src/cc/export/helpers.h
++++ b/src/cc/export/helpers.h
+@@ -298,6 +298,8 @@ static int (*bpf_setsockopt)(void *ctx, int level, int optname, void *optval, in
+   (void *) BPF_FUNC_setsockopt;
+ static int (*bpf_skb_adjust_room)(void *ctx, int len_diff, u32 mode, u64 flags) =
+   (void *) BPF_FUNC_skb_adjust_room;
++static int (*bpf_strcmp)(void *str1, void *str2) =
++  (void *) BPF_FUNC_strcmp;
+ static int (*bpf_skb_under_cgroup)(void *ctx, void *map, int index) =
+   (void *) BPF_FUNC_skb_under_cgroup;
+ static int (*bpf_sk_redirect_map)(void *ctx, void *map, int key, int flags) =
+diff --git a/src/cc/libbpf.c b/src/cc/libbpf.c
+index c23030e..1ba2ffc 100644
+--- a/src/cc/libbpf.c
++++ b/src/cc/libbpf.c
+@@ -140,6 +140,7 @@ static struct bpf_helper helpers[] = {
+   {"set_hash", "4.13"},
+   {"setsockopt", "4.13"},
+   {"skb_adjust_room", "4.13"},
++  {"strcmp", "4.13"},
+   {"redirect_map", "4.14"},
+   {"sk_redirect_map", "4.14"},
+   {"sock_map_update", "4.14"},
+-- 
+2.7.4
+

@@ -1,0 +1,130 @@
+From d31edad7b68603d90757eef1dd8d6bef8ce1aca3 Mon Sep 17 00:00:00 2001
+From: Ashijeet Acharya <a.acharya@virtualopensystems.com>
+Date: Thu, 21 Jun 2018 22:55:47 +0530
+Subject: [PATCH] linux/bpf: add a bpf helper for strcmp
+
+Signed-off-by: Ashijeet Acharya <a.acharya@virtualopensystems.com>
+---
+ include/linux/bpf.h                       |  1 +
+ include/uapi/linux/bpf.h                  |  3 ++-
+ kernel/bpf/core.c                         |  1 +
+ kernel/bpf/helpers.c                      | 18 ++++++++++++++++++
+ kernel/trace/bpf_trace.c                  |  2 ++
+ tools/include/uapi/linux/bpf.h            |  3 ++-
+ tools/testing/selftests/bpf/bpf_helpers.h |  2 ++
+ 7 files changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/bpf.h b/include/linux/bpf.h
+index b69e7a5..98a4903 100644
+--- a/include/linux/bpf.h
++++ b/include/linux/bpf.h
+@@ -374,6 +374,7 @@ extern const struct bpf_func_proto bpf_get_current_comm_proto;
+ extern const struct bpf_func_proto bpf_skb_vlan_push_proto;
+ extern const struct bpf_func_proto bpf_skb_vlan_pop_proto;
+ extern const struct bpf_func_proto bpf_get_stackid_proto;
++extern const struct bpf_func_proto bpf_strcmp_proto;
+ 
+ /* Shared helpers among cBPF and eBPF. */
+ void bpf_user_rnd_init_once(void);
+diff --git a/include/uapi/linux/bpf.h b/include/uapi/linux/bpf.h
+index e99e3e6..93cd1d4 100644
+--- a/include/uapi/linux/bpf.h
++++ b/include/uapi/linux/bpf.h
+@@ -591,7 +591,8 @@ union bpf_attr {
+ 	FN(get_socket_uid),		\
+ 	FN(set_hash),			\
+ 	FN(setsockopt),			\
+-	FN(skb_adjust_room),
++	FN(skb_adjust_room),		\
++	FN(strcmp),
+ 
+ /* integer value in 'imm' field of BPF_CALL instruction selects which helper
+  * function eBPF program intends to call
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+index ad5f559..778318a 100644
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -1378,6 +1378,7 @@ const struct bpf_func_proto bpf_ktime_get_ns_proto __weak;
+ const struct bpf_func_proto bpf_get_current_pid_tgid_proto __weak;
+ const struct bpf_func_proto bpf_get_current_uid_gid_proto __weak;
+ const struct bpf_func_proto bpf_get_current_comm_proto __weak;
++const struct bpf_func_proto bpf_strcmp_proto __weak;
+ 
+ const struct bpf_func_proto * __weak bpf_get_trace_printk_proto(void)
+ {
+diff --git a/kernel/bpf/helpers.c b/kernel/bpf/helpers.c
+index 3d24e23..e5c7fc9 100644
+--- a/kernel/bpf/helpers.c
++++ b/kernel/bpf/helpers.c
+@@ -18,6 +18,7 @@
+ #include <linux/sched.h>
+ #include <linux/uidgid.h>
+ #include <linux/filter.h>
++#include <linux/string.h>
+ 
+ /* If kernel subsystem is allowing eBPF programs to call this function,
+  * inside its own verifier_ops->get_func_proto() callback it should return
+@@ -179,3 +180,20 @@ const struct bpf_func_proto bpf_get_current_comm_proto = {
+ 	.arg1_type	= ARG_PTR_TO_UNINIT_MEM,
+ 	.arg2_type	= ARG_CONST_SIZE,
+ };
++
++BPF_CALL_2(bpf_strcmp, void *, p1, void *, p2)
++{
++	char *str1 = (char *)p1;
++	char *str2 = (char *)p2;
++
++	printk(KERN_DEBUG "I was here, bleh!\n");
++	return strcmp(str1, str2);
++}
++
++const struct bpf_func_proto bpf_strcmp_proto = {
++	.func 		= bpf_strcmp,
++	.gpl_only 	= false,
++	.ret_type	= RET_INTEGER,
++	.arg1_type 	= ARG_PTR_TO_MEM,
++	.arg2_type	= ARG_PTR_TO_MEM,
++};
+diff --git a/kernel/trace/bpf_trace.c b/kernel/trace/bpf_trace.c
+index dc498b6..6ead26d 100644
+--- a/kernel/trace/bpf_trace.c
++++ b/kernel/trace/bpf_trace.c
+@@ -471,6 +471,8 @@ static const struct bpf_func_proto *tracing_func_proto(enum bpf_func_id func_id)
+ 		return &bpf_get_current_uid_gid_proto;
+ 	case BPF_FUNC_get_current_comm:
+ 		return &bpf_get_current_comm_proto;
++	case BPF_FUNC_strcmp:
++		return &bpf_strcmp_proto;
+ 	case BPF_FUNC_trace_printk:
+ 		return bpf_get_trace_printk_proto();
+ 	case BPF_FUNC_get_smp_processor_id:
+diff --git a/tools/include/uapi/linux/bpf.h b/tools/include/uapi/linux/bpf.h
+index ce2988b..7565b79 100644
+--- a/tools/include/uapi/linux/bpf.h
++++ b/tools/include/uapi/linux/bpf.h
+@@ -591,7 +591,8 @@ union bpf_attr {
+ 	FN(get_socket_uid),		\
+ 	FN(set_hash),			\
+ 	FN(setsockopt),			\
+-	FN(skb_adjust_room),
++	FN(skb_adjust_room),		\
++	FN(strcmp),
+ 
+ /* integer value in 'imm' field of BPF_CALL instruction selects which helper
+  * function eBPF program intends to call
+diff --git a/tools/testing/selftests/bpf/bpf_helpers.h b/tools/testing/selftests/bpf/bpf_helpers.h
+index d50ac34..f0f9b7a 100644
+--- a/tools/testing/selftests/bpf/bpf_helpers.h
++++ b/tools/testing/selftests/bpf/bpf_helpers.h
+@@ -31,6 +31,8 @@ static unsigned long long (*bpf_get_current_uid_gid)(void) =
+ 	(void *) BPF_FUNC_get_current_uid_gid;
+ static int (*bpf_get_current_comm)(void *buf, int buf_size) =
+ 	(void *) BPF_FUNC_get_current_comm;
++static int (*bpf_strcmp)(void *str1, void *str2) =
++	(void *) BPF_FUNC_strcmp;
+ static unsigned long long (*bpf_perf_event_read)(void *map,
+ 						 unsigned long long flags) =
+ 	(void *) BPF_FUNC_perf_event_read;
+-- 
+2.7.4
+
